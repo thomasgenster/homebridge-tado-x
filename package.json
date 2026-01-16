@@ -1,7 +1,7 @@
 {
-  "name": "@homebridge-plugins/homebridge-tado",
+  "name": "@homebridge-plugins/homebridge-tado-x",
   "version": "8.7.8",
-  "description": "Homebridge plugin for controlling tado° devices.",
+  "description": "Homebridge plugin for controlling tado° X devices.",
   "main": "index.js",
   "scripts": {
     "lint": "eslint",
@@ -10,9 +10,9 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/homebridge-plugins/homebridge-tado.git"
+    "url": "git+https://github.com/thomasgenster/homebridge-tado-x.git"
   },
-  "author": "maintained by smart7324 (https://github.com/smart7324/) - author SeydX (https://github.com/SeydX/)",
+  "author": "thomasgenster (https://github.com/thomasgenster/) - author SeydX (https://github.com/SeydX/)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/homebridge-plugins/homebridge-tado/issues"
