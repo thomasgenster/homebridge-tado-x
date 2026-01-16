@@ -332,9 +332,9 @@ export default class Tado {
     try {
       Logger.debug(`Home ${home_id}: calling Tado API to check`, this.name);
       // Try to get rooms from hops.tado.com - if successful, it's a Tado X home
-      const rooms = await this.hopsApiCall(`/homes/${home_id}`);
+      const rooms = await this.hopsApiCall(`/homes/${home_id}/`);
       Logger.info(`Home ${home_id} hops api result`, rooms);
-      const isTadoX = Array.isArray(rooms.rooms) && rooms.rooms.length > 0;
+      const isTadoX = rooms.roomCount > 0;
       this.setTadoX(home_id, isTadoX);
       Logger.info(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
       return isTadoX;
@@ -359,11 +359,11 @@ export default class Tado {
   async getZonesUnified(home_id) {
     if (this.isTadoX(home_id)) {
       // Tado X uses rooms instead of zones
-      const rooms = await this.getRooms(home_id);
+      const roomsAndDevices = await this.getRoomsAndDevices(home_id);
       // Map room structure to zone-like structure for compatibility
-      return rooms.map(room => ({
-        id: room.id,
-        name: room.name,
+      return roomsAndDevices.rooms.map(room => ({
+        id: room.roomId,
+        name: room.roomName,
         type: room.setting?.type || 'HEATING',
         devices: room.devices || [],
         openWindowDetection: room.openWindowDetection || { enabled: false },
@@ -909,6 +909,9 @@ export default class Tado {
   // ==================== Tado X (hops.tado.com) API Methods ====================
 
   async getRooms(home_id) {
+    if(this.isTadoX(home_id)){
+      return this.getRoomsAndDevices(home_id);
+    }
     return this.hopsApiCall(`/homes/${home_id}/rooms`);
   }
 
