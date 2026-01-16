@@ -90,14 +90,19 @@ export default {
             };
           });
 
-          //Zone Informations
-          const zones = await tado.getZones(foundHome.id);
+          //Detect if this is a Tado X home
+          const isTadoX = await tado.detectTadoX(foundHome.id);
+          homeConfig.isTadoX = isTadoX;
+
+          //Zone Informations (uses unified method for Tado X compatibility)
+          const zones = await tado.getZonesUnified(foundHome.id);
 
           for (const zone of zones) {
             if (zone.devices)
               zone.devices.forEach((device) => {
-                if (device.deviceType && (device.deviceType.includes('VA01') || device.deviceType.includes('VA02')))
+                if (device.deviceType && (device.deviceType.includes('VA01') || device.deviceType.includes('VA02') || device.deviceType.includes('VAX')))
                   //https://community.tado.com/en-gb/discussion/705/released-child-lock
+                  //VAX is Tado X valve device
                   homeConfig.extras.childLockSwitches.push({
                     active: false,
                     name: zone.name + ' ' + device.shortSerialNo,
@@ -105,7 +110,15 @@ export default {
                   });
               });
 
-            const capabilities = await tado.getZoneCapabilities(foundHome.id, zone.id);
+            // For Tado X, capabilities may not be available via the same endpoint
+            let capabilities = {};
+            if (!isTadoX) {
+              try {
+                capabilities = await tado.getZoneCapabilities(foundHome.id, zone.id);
+              } catch (error) {
+                Logger.debug(`Could not get zone capabilities for zone ${zone.id}: ${error.message}`);
+              }
+            }
 
             homeConfig.zones.push({
               active: true,
@@ -114,7 +127,7 @@ export default {
               type: zone.type,
               delaySwitch: false,
               autoOffDelay: false,
-              noBattery: false,
+              noBattery: isTadoX ? true : false, // Tado X devices may report battery differently
               mode: 'MANUAL',
               modeTimer: 30,
               easyMode: false,
@@ -132,7 +145,7 @@ export default {
                 ? homeConfig.temperatureUnit === 'CELSIUS'
                   ? capabilities.temperatures.celsius.step
                   : capabilities.temperatures.fahrenheit.step
-                : 1,
+                : isTadoX ? 0.1 : 1, // Tado X uses 0.1 step precision
               openWindowSensor: false,
               openWindowSwitch: false,
               accTypeOpenWindowSwitch: 'SWITCH',
@@ -299,8 +312,12 @@ export default {
           });
         }
 
-        //Zone Informations
-        const zones = await tado.getZones(home.id);
+        //Detect if this is a Tado X home
+        const isTadoX = await tado.detectTadoX(home.id);
+        config.homes[i].isTadoX = isTadoX;
+
+        //Zone Informations (uses unified method for Tado X compatibility)
+        const zones = await tado.getZonesUnified(home.id);
 
         //Remove not available zones
         config.homes[i].zones.forEach((zone, index) => {
@@ -318,11 +335,19 @@ export default {
         //Check for new zones or refresh exist one
         if (config.homes[i].zones.length) {
           for (const foundZone of zones) {
-            const capabilities = await tado.getZoneCapabilities(home.id, foundZone.id);
+            // For Tado X, capabilities may not be available via the same endpoint
+            let capabilities = {};
+            if (!isTadoX) {
+              try {
+                capabilities = await tado.getZoneCapabilities(home.id, foundZone.id);
+              } catch (error) {
+                Logger.debug(`Could not get zone capabilities for zone ${foundZone.id}: ${error.message}`);
+              }
+            }
 
             if (foundZone.devices)
               foundZone.devices.forEach((dev) => {
-                if (dev.deviceType && (dev.deviceType.includes('VA01') || dev.deviceType.includes('VA02')))
+                if (dev.deviceType && (dev.deviceType.includes('VA01') || dev.deviceType.includes('VA02') || dev.deviceType.includes('VAX')))
                   allFoundDevices.push({
                     name: foundZone.name + ' ' + dev.shortSerialNo,
                     serialNumber: dev.shortSerialNo,
@@ -352,7 +377,7 @@ export default {
                 ? homeInfo.temperatureUnit === 'CELSIUS'
                   ? capabilities.temperatures.celsius.step
                   : capabilities.temperatures.fahrenheit.step
-                : 1;
+                : isTadoX ? 0.1 : 1;
             } else {
               config.homes[i].zones.push({
                 active: true,
@@ -361,7 +386,7 @@ export default {
                 type: foundZone.type,
                 delaySwitch: false,
                 autoOffDelay: false,
-                noBattery: false,
+                noBattery: isTadoX ? true : false,
                 mode: 'MANUAL',
                 modeTimer: 30,
                 minValue: capabilities.temperatures
@@ -378,7 +403,7 @@ export default {
                   ? homeInfo.temperatureUnit === 'CELSIUS'
                     ? capabilities.temperatures.celsius.step
                     : capabilities.temperatures.fahrenheit.step
-                  : 1,
+                  : isTadoX ? 0.1 : 1,
                 easyMode: false,
                 openWindowSensor: false,
                 openWindowSwitch: false,
@@ -392,11 +417,19 @@ export default {
           }
         } else {
           for (const zone of zones) {
-            const capabilities = await tado.getZoneCapabilities(home.id, zone.id);
+            // For Tado X, capabilities may not be available via the same endpoint
+            let capabilities = {};
+            if (!isTadoX) {
+              try {
+                capabilities = await tado.getZoneCapabilities(home.id, zone.id);
+              } catch (error) {
+                Logger.debug(`Could not get zone capabilities for zone ${zone.id}: ${error.message}`);
+              }
+            }
 
             if (zone.devices)
               zone.devices.forEach((dev) => {
-                if (dev.deviceType && (dev.deviceType.includes('VA01') || dev.deviceType.includes('VA02')))
+                if (dev.deviceType && (dev.deviceType.includes('VA01') || dev.deviceType.includes('VA02') || dev.deviceType.includes('VAX')))
                   allFoundDevices.push({
                     name: zone.name + ' ' + dev.shortSerialNo,
                     serialNumber: dev.shortSerialNo,
@@ -410,7 +443,7 @@ export default {
               type: zone.type,
               delaySwitch: false,
               autoOffDelay: false,
-              noBattery: false,
+              noBattery: isTadoX ? true : false,
               mode: 'MANUAL',
               modeTimer: 30,
               minValue: capabilities.temperatures
@@ -427,7 +460,7 @@ export default {
                 ? homeInfo.temperatureUnit === 'CELSIUS'
                   ? capabilities.temperatures.celsius.step
                   : capabilities.temperatures.fahrenheit.step
-                : 1,
+                : isTadoX ? 0.1 : 1,
               easyMode: false,
               openWindowSensor: false,
               openWindowSwitch: false,

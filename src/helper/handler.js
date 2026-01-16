@@ -79,7 +79,7 @@ export default (api, accessories, config, tado, telegram) => {
               // Use AC-specific overlay for AIR_CONDITIONING zones
               if (accessory.context.config.type === 'AIR_CONDITIONING') {
                 zoneUpdated = true;
-                await tado.setACZoneOverlay(
+                await tado.setACZoneOverlayUnified(
                   config.homeId,
                   accessory.context.config.zoneId,
                   power,
@@ -92,7 +92,7 @@ export default (api, accessories, config, tado, telegram) => {
                 );
               } else {
                 zoneUpdated = true;
-                await tado.setZoneOverlay(
+                await tado.setZoneOverlayUnified(
                   config.homeId,
                   accessory.context.config.zoneId,
                   power,
@@ -132,7 +132,7 @@ export default (api, accessories, config, tado, telegram) => {
                     accessory.context.config.subtype.includes('heatercooler'))
                 ) {
                   zoneUpdated = true;
-                  await tado.clearZoneOverlay(config.homeId, accessory.context.config.zoneId);
+                  await tado.clearZoneOverlayUnified(config.homeId, accessory.context.config.zoneId);
                   return;
                 }
 
@@ -148,7 +148,7 @@ export default (api, accessories, config, tado, telegram) => {
                   let acMode = value === 1 ? 'HEAT' : value === 2 ? 'COOL' : 'COOL';
 
                   zoneUpdated = true;
-                  await tado.setACZoneOverlay(
+                  await tado.setACZoneOverlayUnified(
                     config.homeId,
                     accessory.context.config.zoneId,
                     power,
@@ -161,7 +161,7 @@ export default (api, accessories, config, tado, telegram) => {
                   );
                 } else {
                   zoneUpdated = true;
-                  await tado.setZoneOverlay(
+                  await tado.setZoneOverlayUnified(
                     config.homeId,
                     accessory.context.config.zoneId,
                     power,
@@ -195,7 +195,7 @@ export default (api, accessories, config, tado, telegram) => {
                   accessory.context.config.subtype.includes('heatercooler'))
               ) {
                 zoneUpdated = true;
-                await tado.clearZoneOverlay(config.homeId, accessory.context.config.zoneId);
+                await tado.clearZoneOverlayUnified(config.homeId, accessory.context.config.zoneId);
                 return;
               }
 
@@ -258,7 +258,7 @@ export default (api, accessories, config, tado, telegram) => {
               }
 
               zoneUpdated = true;
-              await tado.setACZoneOverlay(
+              await tado.setACZoneOverlayUnified(
                 config.homeId,
                 accessory.context.config.zoneId,
                 power,
@@ -271,7 +271,7 @@ export default (api, accessories, config, tado, telegram) => {
               );
             } else {
               zoneUpdated = true;
-              await tado.setZoneOverlay(
+              await tado.setZoneOverlayUnified(
                 config.homeId,
                 accessory.context.config.zoneId,
                 power,
@@ -302,7 +302,7 @@ export default (api, accessories, config, tado, telegram) => {
           // Use AC-specific overlay for AIR_CONDITIONING zones
           if (accessory.context.config.type === 'AIR_CONDITIONING') {
             zoneUpdated = true;
-            await tado.setACZoneOverlay(
+            await tado.setACZoneOverlayUnified(
               config.homeId,
               accessory.context.config.zoneId,
               power,
@@ -315,7 +315,7 @@ export default (api, accessories, config, tado, telegram) => {
             );
           } else {
             zoneUpdated = true;
-            await tado.setZoneOverlay(
+            await tado.setZoneOverlayUnified(
               config.homeId,
               accessory.context.config.zoneId,
               power,
@@ -386,7 +386,7 @@ export default (api, accessories, config, tado, telegram) => {
           zoneId = zoneId[zoneId.length - 1];
 
           await tado.setWindowDetection(config.homeId, zoneId, value, 3600);
-          await tado.setOpenWindowMode(config.homeId, zoneId, value);
+          await tado.setOpenWindowModeUnified(config.homeId, zoneId, value);
 
           break;
         }
@@ -427,7 +427,7 @@ export default (api, accessories, config, tado, telegram) => {
                 })
                 .filter((id) => id);
 
-              await tado.resumeShedule(config.homeId, roomIds);
+              await tado.resumeScheduleUnified(config.homeId, roomIds);
 
               //Turn all back to AUTO/ON
               heatAccessories.forEach((acc) => {
@@ -551,7 +551,7 @@ export default (api, accessories, config, tado, telegram) => {
               .updateValue(false);
           }
 
-          await tado.switchAll(config.homeId, rooms);
+          await tado.switchAllUnified(config.homeId, rooms);
 
           break;
         }
@@ -812,6 +812,9 @@ export default (api, accessories, config, tado, telegram) => {
     if (config.homeName !== me.homes[0].name) throw ('Cannot find requested home in the API!', config.homeName);
 
     config.homeId = me.homes[0].id;
+
+    // Detect if this is a Tado X home
+    await tado.detectTadoX(config.homeId);
   }
 
   async function updateHome() {
@@ -877,7 +880,7 @@ export default (api, accessories, config, tado, telegram) => {
     let zonesWithoutID = config.zones.filter((zone) => zone && !zone.id);
 
     if (zonesWithoutID.length) {
-      const allZones = (await tado.getZones(config.homeId)) || [];
+      const allZones = (await tado.getZonesUnified(config.homeId)) || [];
 
       for (const [index, zone] of config.zones.entries()) {
         allZones.forEach((zoneWithID) => {
@@ -886,7 +889,7 @@ export default (api, accessories, config, tado, telegram) => {
       }
     }
 
-    const allZones = (await tado.getZones(config.homeId)) || [];
+    const allZones = (await tado.getZonesUnified(config.homeId)) || [];
 
     Logger.debug("_updateZones: config zones", config.zones);
     for (const [index, zone] of config.zones.entries()) {
@@ -919,7 +922,7 @@ export default (api, accessories, config, tado, telegram) => {
 
     let zoneStates = {};
     if (config.zones?.length) {
-      zoneStates = (await tado.getZoneStates(config.homeId))["zoneStates"] ?? {};
+      zoneStates = (await tado.getZoneStatesUnified(config.homeId))["zoneStates"] ?? {};
       void persistZoneStates(config.homeId, zoneStates);
     }
 

@@ -4,6 +4,7 @@ import { join } from 'path';
 import { access, readFile, writeFile } from 'fs/promises';
 
 const tado_url = "https://my.tado.com";
+const tado_hops_url = "https://hops.tado.com";
 const tado_auth_url = "https://login.tado.com/oauth2";
 const tado_client_id = "1bb50063-6b0c-4d11-bd99-387f4a91cc46";
 
@@ -33,6 +34,8 @@ export default class Tado {
     this._tadoAuthenticationCallback = undefined;
     this._counterActivated = counterActivated?.toString() === "true";
     this._counterInitPromise = this._initCounter();
+    // Tado X home detection cache (per home_id)
+    this._tadoXHomes = new Map();
     Logger.debug("API successfull initialized", this.name);
   }
 
@@ -309,6 +312,176 @@ export default class Tado {
       });
       throw error;
     }
+  }
+
+  async hopsApiCall(path, method = 'GET', data = {}, params = {}) {
+    // Tado X uses hops.tado.com with ngsw-bypass parameter
+    const hopsParams = { ...params, 'ngsw-bypass': 'true' };
+    return this.apiCall(path, method, data, hopsParams, tado_hops_url);
+  }
+
+  async detectTadoX(home_id) {
+    // Check if we already detected this home
+    if (this._tadoXHomes.has(home_id)) {
+      return this._tadoXHomes.get(home_id);
+    }
+
+    try {
+      // Try to get rooms from hops.tado.com - if successful, it's a Tado X home
+      const rooms = await this.hopsApiCall(`/homes/${home_id}/rooms`);
+      const isTadoX = Array.isArray(rooms) && rooms.length > 0;
+      this._tadoXHomes.set(home_id, isTadoX);
+      Logger.debug(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
+      return isTadoX;
+    } catch (_error) {
+      // If hops API fails, it's likely a V3/V3+ home
+      this._tadoXHomes.set(home_id, false);
+      Logger.debug(`Home ${home_id} detected as Tado V3/V3+ (hops API failed)`, this.name);
+      return false;
+    }
+  }
+
+  isTadoX(home_id) {
+    return this._tadoXHomes.get(home_id) || false;
+  }
+
+  setTadoX(home_id, value) {
+    this._tadoXHomes.set(home_id, value);
+  }
+
+  // ==================== Unified API Methods (auto-routing based on Tado X detection) ====================
+
+  async getZonesUnified(home_id) {
+    if (this.isTadoX(home_id)) {
+      // Tado X uses rooms instead of zones
+      const rooms = await this.getRooms(home_id);
+      // Map room structure to zone-like structure for compatibility
+      return rooms.map(room => ({
+        id: room.id,
+        name: room.name,
+        type: room.setting?.type || 'HEATING',
+        devices: room.devices || [],
+        openWindowDetection: room.openWindowDetection || { enabled: false },
+        // Preserve original room data for Tado X specific operations
+        _tadoX: room,
+      }));
+    }
+    return this.getZones(home_id);
+  }
+
+  async getZoneStateUnified(home_id, zone_id) {
+    if (this.isTadoX(home_id)) {
+      const room = await this.getRoom(home_id, zone_id);
+      // Map room state to zone state structure for compatibility
+      return this._mapRoomToZoneState(room);
+    }
+    return this.getZoneState(home_id, zone_id);
+  }
+
+  async getZoneStatesUnified(home_id) {
+    if (this.isTadoX(home_id)) {
+      const rooms = await this.getRooms(home_id);
+      const zoneStates = {};
+      for (const room of rooms) {
+        zoneStates[room.id.toString()] = this._mapRoomToZoneState(room);
+      }
+      return { zoneStates };
+    }
+    return this.getZoneStates(home_id);
+  }
+
+  _mapRoomToZoneState(room) {
+    // Map Tado X room structure to V3 zone state structure
+    const setting = room.setting || {};
+    const sensorDataPoints = {};
+
+    if (room.currentTemperature !== undefined) {
+      sensorDataPoints.insideTemperature = {
+        celsius: room.currentTemperature?.celsius ?? room.currentTemperature,
+        fahrenheit: room.currentTemperature?.fahrenheit ?? (room.currentTemperature * 9/5 + 32),
+      };
+    }
+
+    if (room.humidity !== undefined) {
+      sensorDataPoints.humidity = {
+        percentage: room.humidity,
+      };
+    }
+
+    return {
+      setting: {
+        type: setting.type || 'HEATING',
+        power: setting.power || 'OFF',
+        temperature: setting.temperature ? {
+          celsius: setting.temperature.value ?? setting.temperature.celsius ?? setting.temperature,
+          fahrenheit: setting.temperature.fahrenheit ?? ((setting.temperature.value ?? setting.temperature) * 9/5 + 32),
+        } : null,
+        mode: setting.mode,
+      },
+      sensorDataPoints,
+      overlayType: room.manualControlTermination ? 'MANUAL' : null,
+      overlay: room.manualControlTermination ? {
+        termination: room.manualControlTermination,
+      } : null,
+      openWindow: room.openWindow,
+      openWindowDetected: room.openWindowDetected,
+      // Preserve original room data
+      _tadoX: room,
+    };
+  }
+
+  async setZoneOverlayUnified(home_id, zone_id, power, temperature, termination, tempUnit) {
+    if (this.isTadoX(home_id)) {
+      return this.setRoomOverlay(home_id, zone_id, power, temperature, termination, tempUnit);
+    }
+    return this.setZoneOverlay(home_id, zone_id, power, temperature, termination, tempUnit);
+  }
+
+  async setACZoneOverlayUnified(home_id, zone_id, power, mode, temperature, fanSpeed, swing, termination, tempUnit) {
+    if (this.isTadoX(home_id)) {
+      return this.setACRoomOverlay(home_id, zone_id, power, mode, temperature, fanSpeed, swing, termination, tempUnit);
+    }
+    return this.setACZoneOverlay(home_id, zone_id, power, mode, temperature, fanSpeed, swing, termination, tempUnit);
+  }
+
+  async clearZoneOverlayUnified(home_id, zone_id) {
+    if (this.isTadoX(home_id)) {
+      return this.clearRoomOverlay(home_id, zone_id);
+    }
+    return this.clearZoneOverlay(home_id, zone_id);
+  }
+
+  async setOpenWindowModeUnified(home_id, zone_id, activate) {
+    if (this.isTadoX(home_id)) {
+      return this.setRoomOpenWindow(home_id, zone_id, activate);
+    }
+    return this.setOpenWindowMode(home_id, zone_id, activate);
+  }
+
+  async resumeScheduleUnified(home_id, roomIds = []) {
+    if (this.isTadoX(home_id)) {
+      return this.resumeRoomSchedule(home_id, roomIds);
+    }
+    return this.resumeShedule(home_id, roomIds);
+  }
+
+  async switchAllUnified(home_id, zones = []) {
+    if (this.isTadoX(home_id)) {
+      // For Tado X, we need to set each room individually or use quick actions
+      const results = [];
+      for (const zone of zones) {
+        if (zone.power === 'OFF' || !zone.maxTempInCelsius) {
+          // Resume schedule or turn off
+          results.push(await this.clearRoomOverlay(home_id, zone.id));
+        } else {
+          // Set manual control
+          const termination = zone.termination === 'TIMER' ? zone.timer : zone.termination;
+          results.push(await this.setRoomOverlay(home_id, zone.id, zone.power, zone.maxTempInCelsius, termination));
+        }
+      }
+      return results;
+    }
+    return this.switchAll(home_id, zones);
   }
 
   async fullAuthentication() {
@@ -708,5 +881,141 @@ export default class Tado {
     if (to) period.to = to;
 
     return this.apiCall(`/v1/homes/${home_id}/runningTimes`, 'GET', {}, period, 'https://minder.tado.com');
+  }
+
+  // ==================== Tado X (hops.tado.com) API Methods ====================
+
+  async getRooms(home_id) {
+    return this.hopsApiCall(`/homes/${home_id}/rooms`);
+  }
+
+  async getRoom(home_id, room_id) {
+    return this.hopsApiCall(`/homes/${home_id}/rooms/${room_id}`);
+  }
+
+  async getRoomsAndDevices(home_id) {
+    return this.hopsApiCall(`/homes/${home_id}/roomsAndDevices`);
+  }
+
+  async getFeatures(home_id) {
+    return this.hopsApiCall(`/homes/${home_id}/features`);
+  }
+
+  async setRoomOverlay(home_id, room_id, power, temperature, termination, tempUnit) {
+    const config = {
+      setting: {
+        power: power?.toString().toUpperCase() === 'ON' ? 'ON' : 'OFF',
+        isBoost: false,
+      },
+      termination: {},
+    };
+
+    if (power?.toString().toUpperCase() === 'ON' && temperature !== undefined && !isNaN(temperature)) {
+      let tempValue = temperature;
+      if (tempUnit?.toLowerCase() === 'fahrenheit') {
+        tempValue = ((temperature - 32) * 5) / 9;
+      }
+      config.setting.temperature = {
+        value: tempValue,
+        precision: 0.1,
+      };
+    } else {
+      config.setting.temperature = null;
+    }
+
+    if (!isNaN(parseInt(termination))) {
+      config.termination.type = 'TIMER';
+      config.termination.durationInSeconds = parseInt(termination);
+    } else if (termination?.toLowerCase() === 'auto' || termination?.toLowerCase() === 'next_time_block') {
+      config.termination.type = 'NEXT_TIME_BLOCK';
+    } else {
+      config.termination.type = 'MANUAL';
+    }
+
+    return this.hopsApiCall(`/homes/${home_id}/rooms/${room_id}/manualControl`, 'POST', config);
+  }
+
+  async setACRoomOverlay(home_id, room_id, power, mode, temperature, fanSpeed, swing, termination, tempUnit) {
+    const config = {
+      setting: {
+        power: power?.toString().toUpperCase() === 'ON' ? 'ON' : 'OFF',
+        isBoost: false,
+      },
+      termination: {},
+    };
+
+    if (power?.toString().toUpperCase() === 'ON') {
+      config.setting.mode = mode || 'COOL';
+
+      if (temperature !== undefined && !isNaN(temperature)) {
+        let tempValue = temperature;
+        if (tempUnit?.toLowerCase() === 'fahrenheit') {
+          tempValue = ((temperature - 32) * 5) / 9;
+        }
+        config.setting.temperature = {
+          value: tempValue,
+          precision: 0.1,
+        };
+      }
+
+      if (swing !== undefined && swing !== null) {
+        config.setting.swing = swing;
+      }
+    }
+
+    if (!isNaN(parseInt(termination))) {
+      config.termination.type = 'TIMER';
+      config.termination.durationInSeconds = parseInt(termination);
+    } else if (termination?.toLowerCase() === 'auto' || termination?.toLowerCase() === 'next_time_block') {
+      config.termination.type = 'NEXT_TIME_BLOCK';
+    } else {
+      config.termination.type = 'MANUAL';
+    }
+
+    return this.hopsApiCall(`/homes/${home_id}/rooms/${room_id}/manualControl`, 'POST', config);
+  }
+
+  async clearRoomOverlay(home_id, room_id) {
+    // For Tado X, resuming schedule clears the overlay
+    return this.hopsApiCall(`/homes/${home_id}/quickActions/resumeSchedule`, 'POST', {
+      rooms: [room_id],
+    });
+  }
+
+  async setRoomOpenWindow(home_id, room_id, activate) {
+    if (activate) {
+      return this.hopsApiCall(`/homes/${home_id}/rooms/${room_id}/openWindow`, 'POST');
+    } else {
+      return this.hopsApiCall(`/homes/${home_id}/rooms/${room_id}/openWindow`, 'DELETE');
+    }
+  }
+
+  async resumeRoomSchedule(home_id, roomIds = []) {
+    if (!roomIds.length) {
+      throw new Error('Cannot resume schedule for rooms, no room ids given!');
+    }
+
+    return this.hopsApiCall(`/homes/${home_id}/quickActions/resumeSchedule`, 'POST', {
+      rooms: roomIds,
+    });
+  }
+
+  async setBoost(home_id, roomIds = [], durationInSeconds = 1800) {
+    if (!roomIds.length) {
+      throw new Error('Cannot set boost, no room ids given!');
+    }
+
+    return this.hopsApiCall(`/homes/${home_id}/quickActions/boost`, 'POST', {
+      rooms: roomIds,
+      durationInSeconds: durationInSeconds,
+    });
+  }
+
+  async setDeviceTemperatureOffsetX(home_id, device_id, temperatureOffset) {
+    const config = {
+      temperatureOffset: temperatureOffset,
+    };
+
+    return this.hopsApiCall(`/homes/${home_id}/roomsAndDevices/devices/${device_id}`, 'PATCH', config);
   }
 }
