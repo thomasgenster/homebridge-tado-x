@@ -778,6 +778,9 @@ export default (api, accessories, config, tado, telegram) => {
       //Home
       if (!config.temperatureUnit) await updateHome();
 
+      // Detect Tado X before polling zones (required for correct API routing)
+      await tado.detectTadoX(config.homeId);
+
       //Zones
       if (config.zones.length) await updateZones();
 

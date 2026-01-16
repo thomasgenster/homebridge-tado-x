@@ -335,12 +335,12 @@ export default class Tado {
       const rooms = await this.hopsApiCall(`/homes/${home_id}`);
       const isTadoX = Array.isArray(rooms.rooms) && rooms.rooms.length > 0;
       this.setTadoX(home_id, isTadoX);
-      Logger.debug(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
+      Logger.info(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
       return isTadoX;
     } catch (_error) {
       // If hops API fails, it's likely a V3/V3+ home
       this.setTadoX(home_id, false);
-      Logger.debug(`Home ${home_id} detected as Tado V3/V3+ (hops API failed)`, this.name);
+      Logger.info(`Home ${home_id} detected as Tado V3/V3+ (hops API failed)`, this.name);
       return false;
     }
   }
