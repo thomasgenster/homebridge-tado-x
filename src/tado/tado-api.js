@@ -359,11 +359,11 @@ export default class Tado {
   async getZonesUnified(home_id) {
     if (this.isTadoX(home_id)) {
       // Tado X uses rooms instead of zones
-      const roomsAndDevices = await this.getRoomsAndDevices(home_id);
+      const rooms = await this.getRooms(home_id);
       // Map room structure to zone-like structure for compatibility
-      return roomsAndDevices.rooms.map(room => ({
-        id: room.roomId,
-        name: room.roomName,
+      return rooms.map(room => ({
+        id: room.id,
+        name: room.name,
         type: room.setting?.type || 'HEATING',
         devices: room.devices || [],
         openWindowDetection: room.openWindowDetection || { enabled: false },
@@ -398,7 +398,7 @@ export default class Tado {
   _mapRoomToZoneState(room) {
     // Map Tado X room structure to V3 zone state structure
     const setting = room.setting || {};
-    const sensorDataPoints = {};
+    const sensorDataPoints = room.sensorDataPoints;
 
     if (room.currentTemperature !== undefined && room.currentTemperature !== null) {
       // Handle various Tado X temperature formats: {celsius, fahrenheit}, {value}, or raw number
@@ -909,9 +909,6 @@ export default class Tado {
   // ==================== Tado X (hops.tado.com) API Methods ====================
 
   async getRooms(home_id) {
-    if(this.isTadoX(home_id)){
-      return this.getRoomsAndDevices(home_id);
-    }
     return this.hopsApiCall(`/homes/${home_id}/rooms`);
   }
 
