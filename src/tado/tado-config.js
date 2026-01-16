@@ -315,9 +315,12 @@ export default {
         //Detect if this is a Tado X home
         const isTadoX = await tado.detectTadoX(home.id);
         config.homes[i].isTadoX = isTadoX;
+        Logger.info(`Home ${home.id} (${home.name}): Tado X detected = ${isTadoX}`);
 
         //Zone Informations (uses unified method for Tado X compatibility)
         const zones = await tado.getZonesUnified(home.id);
+        Logger.info(`Home ${home.id}: API returned ${zones.length} zones: ${JSON.stringify(zones.map(z => ({ id: z.id, name: z.name, type: z.type })))}`);
+        Logger.info(`Home ${home.id}: Config has ${config.homes[i].zones.length} zones: ${JSON.stringify(config.homes[i].zones.map(z => ({ name: z.name, type: z.type })))}`);
 
         //Remove not available zones
         config.homes[i].zones.forEach((zone, index) => {
@@ -328,6 +331,7 @@ export default {
             }
           });
           if (!found) {
+            Logger.info(`Zone "${zone.name}" not found in API zones, removing from config`);
             config.homes[i].zones.splice(index, 1);
           }
         });

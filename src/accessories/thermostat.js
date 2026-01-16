@@ -21,7 +21,7 @@ export default class ThermostatAccessory {
       return this.deviceHandler.setStates(this.accessory, this.accessories, target, value);
     }, preferSiriTemperature);
 
-    Logger.debug('added ThermostatAccessory', this);
+    Logger.debug('added ThermostatAccessory');
 
     this.getService();
   }
