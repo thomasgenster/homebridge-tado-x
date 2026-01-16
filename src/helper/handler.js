@@ -915,9 +915,8 @@ export default (api, accessories, config, tado, telegram) => {
                 (zone.type === 'HEATING' || zone.type === 'AIR_CONDITIONING') &&
                 (typeof device.batteryState === 'string' && device.batteryState !== 'NORMAL')
             ).length
-              ? zoneWithID.devices.filter((device) => device && device.batteryState !== 'NORMAL')[0]
-                .batteryState
-              : zoneWithID.devices.filter((device) => device && device.duties && device.duties.includes('ZONE_LEADER'))[0].batteryState
+              ? (zoneWithID.devices.filter((device) => device && device.batteryState !== 'NORMAL')[0])?.batteryState
+              : (zoneWithID.devices.filter((device) => device && device.duties && device.duties.includes('ZONE_LEADER'))[0])?.batteryState
             : false;
           config.zones[index].openWindowEnabled =
             zoneWithID.openWindowDetection && zoneWithID.openWindowDetection.enabled ? true : false;
