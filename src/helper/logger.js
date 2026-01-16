@@ -1,5 +1,5 @@
 var log = console;
-var debugMode = false;
+var debugMode = true;
 
 export default {
   init: function (logger, debug) {
