@@ -395,17 +395,35 @@ export default class Tado {
     const setting = room.setting || {};
     const sensorDataPoints = {};
 
-    if (room.currentTemperature !== undefined) {
-      sensorDataPoints.insideTemperature = {
-        celsius: room.currentTemperature?.celsius ?? room.currentTemperature,
-        fahrenheit: room.currentTemperature?.fahrenheit ?? (room.currentTemperature * 9/5 + 32),
-      };
+    if (room.currentTemperature !== undefined && room.currentTemperature !== null) {
+      // Handle various Tado X temperature formats: {celsius, fahrenheit}, {value}, or raw number
+      let celsiusTemp;
+      if (typeof room.currentTemperature === 'number') {
+        celsiusTemp = room.currentTemperature;
+      } else if (room.currentTemperature.celsius !== undefined) {
+        celsiusTemp = room.currentTemperature.celsius;
+      } else if (room.currentTemperature.value !== undefined) {
+        celsiusTemp = room.currentTemperature.value;
+      }
+
+      if (celsiusTemp !== undefined) {
+        sensorDataPoints.insideTemperature = {
+          celsius: celsiusTemp,
+          fahrenheit: room.currentTemperature?.fahrenheit ?? (celsiusTemp * 9/5 + 32),
+        };
+      }
     }
 
-    if (room.humidity !== undefined) {
-      sensorDataPoints.humidity = {
-        percentage: room.humidity,
-      };
+    if (room.humidity !== undefined && room.humidity !== null) {
+      // Handle humidity as number or object with percentage
+      const humidityValue = typeof room.humidity === 'number'
+        ? room.humidity
+        : room.humidity?.percentage ?? room.humidity?.value;
+      if (humidityValue !== undefined) {
+        sensorDataPoints.humidity = {
+          percentage: humidityValue,
+        };
+      }
     }
 
     return {

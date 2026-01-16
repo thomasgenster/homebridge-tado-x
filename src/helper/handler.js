@@ -892,9 +892,12 @@ export default (api, accessories, config, tado, telegram) => {
     const allZones = (await tado.getZonesUnified(config.homeId)) || [];
 
     Logger.debug("_updateZones: config zones", config.zones);
+    Logger.debug("_updateZones: API zones", allZones.map(z => ({ id: z.id, name: z.name, type: z.type })));
     for (const [index, zone] of config.zones.entries()) {
+      let matched = false;
       allZones.forEach((zoneWithID) => {
         if (zoneWithID.name === zone.name && zoneWithID.type === zone.type) {
+          matched = true;
           const heatAccessory = accessories.filter(
             (acc) => acc && acc.displayName === config.homeName + ' ' + zone.name + ' Heater'
           );
@@ -918,6 +921,9 @@ export default (api, accessories, config, tado, telegram) => {
             zoneWithID.openWindowDetection && zoneWithID.openWindowDetection.enabled ? true : false;
         }
       });
+      if (!matched) {
+        Logger.debug(`_updateZones: Zone "${zone.name}" (type: ${zone.type}) did not match any API zone`, config.homeName);
+      }
     }
 
     let zoneStates = {};
@@ -927,7 +933,15 @@ export default (api, accessories, config, tado, telegram) => {
     }
 
     for (const zone of config.zones) {
+      if (zone.id === undefined || zone.id === null) {
+        Logger.warn(`Zone "${zone.name}" (type: ${zone.type}) has no matching zone ID from the API. Check that the zone name and type in your config matches exactly with the tado app.`, config.homeName);
+        continue;
+      }
       const zoneState = zoneStates[zone.id.toString()];
+      if (!zoneState) {
+        Logger.warn(`No state data found for zone "${zone.name}" (id: ${zone.id}). The zone may have been removed or renamed.`, config.homeName);
+        continue;
+      }
       Logger.debug(`Update state of zone ${zone.id} to:`, zoneState);
 
       let currentState, targetState, currentTemp, targetTemp, humidity, active, battery, tempEqual;
