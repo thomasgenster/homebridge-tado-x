@@ -333,6 +333,7 @@ export default class Tado {
       Logger.debug(`Home ${home_id}: calling Tado API to check`, this.name);
       // Try to get rooms from hops.tado.com - if successful, it's a Tado X home
       const rooms = await this.hopsApiCall(`/homes/${home_id}`);
+      Logger.info(`Home ${home_id} hops api result`, rooms);
       const isTadoX = Array.isArray(rooms.rooms) && rooms.rooms.length > 0;
       this.setTadoX(home_id, isTadoX);
       Logger.info(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
