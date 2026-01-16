@@ -206,6 +206,8 @@ class TadoPlatform {
       Logger.info('Identify requested.', accessory.displayName);
     });
 
+    Logger.debug('Setting up accessory', accessory);
+
     const manufacturer = 'tado';
 
     const model = device.model ? device.model : device.subtype;
@@ -234,6 +236,7 @@ class TadoPlatform {
 
     const configHandler = this.deviceHandler.get(accessory.context.config.homeName);
     const deviceHandler = DeviceHandler(this.api, false, configHandler, tado, this.telegram);
+    Logger.debug('added deviceHandler', deviceHandler);
 
     switch (device.subtype) {
       case 'zone-thermostat':
