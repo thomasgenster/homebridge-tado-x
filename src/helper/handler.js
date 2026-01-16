@@ -857,6 +857,7 @@ export default (api, accessories, config, tado, telegram) => {
           await _updateZones();
         } catch (error) {
           Logger.error(`Failed to update zones: ${error.message || JSON.stringify(error)}`);
+          Logger.error(error);
         }
         if (helpers[config.homeId].updateZonesNextQueued) {
           helpers[config.homeId].updateZonesNextQueued = false;
