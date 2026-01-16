@@ -322,20 +322,24 @@ export default class Tado {
 
   async detectTadoX(home_id) {
     // Check if we already detected this home
+    Logger.debug(`Home ${home_id}: checking for Tado X`, this.name);
     if (this._tadoXHomes.has(home_id)) {
-      return this._tadoXHomes.get(home_id);
+      let isTadoX = this._tadoXHomes.get(home_id);
+      Logger.debug(`Home ${home_id}: Already checked - is tado X: ` + (isTadoX ? 'yes' : 'no'), this.name);
+      return isTadoX;
     }
 
     try {
+      Logger.debug(`Home ${home_id}: calling Tado API to check`, this.name);
       // Try to get rooms from hops.tado.com - if successful, it's a Tado X home
-      const rooms = await this.hopsApiCall(`/homes/${home_id}/rooms`);
-      const isTadoX = Array.isArray(rooms) && rooms.length > 0;
-      this._tadoXHomes.set(home_id, isTadoX);
+      const rooms = await this.hopsApiCall(`/homes/${home_id}`);
+      const isTadoX = Array.isArray(rooms.rooms) && rooms.rooms.length > 0;
+      this.setTadoX(home_id, isTadoX);
       Logger.debug(`Home ${home_id} detected as ${isTadoX ? 'Tado X' : 'Tado V3/V3+'}`, this.name);
       return isTadoX;
     } catch (_error) {
       // If hops API fails, it's likely a V3/V3+ home
-      this._tadoXHomes.set(home_id, false);
+      this.setTadoX(home_id, false);
       Logger.debug(`Home ${home_id} detected as Tado V3/V3+ (hops API failed)`, this.name);
       return false;
     }
