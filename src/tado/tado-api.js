@@ -438,6 +438,8 @@ export default class Tado {
       }
     }
 
+    Logger.debug('Temperature data', sensorDataPoints)
+
     return {
       setting: {
         type: setting.type || 'HEATING',
