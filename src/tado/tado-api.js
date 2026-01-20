@@ -419,6 +419,13 @@ export default class Tado {
       }
     }
 
+    if(room.sensorDataPoints?.insideTemperature?.value){
+      sensorDataPoints.insideTemperature = {
+        celsius: room.sensorDataPoints.insideTemperature.value,
+        fahrenheit: (room.sensorDataPoints.insideTemperature.value * 9/5 + 32),
+      };
+    }
+
     if (room.humidity !== undefined && room.humidity !== null) {
       // Handle humidity as number or object with percentage
       const humidityValue = typeof room.humidity === 'number'
